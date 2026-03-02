@@ -1,0 +1,4 @@
+{"id":"qwen_customer_from_prev_run","prompt":"","output_path":"eval/generated/Customer.jade","extract":"raw"}
+{"id":"qwen_order_from_prev_run","prompt":"","output_path":"eval/generated/Order.jade","extract":"raw"}
+{"id":"qwen_hard_domain_model_from_prev_run","prompt":"","output_path":"eval/generated/hard/DomainModel.scm","extract":"raw"}
+{"id":"qwen_hard_inheritance_from_prev_run","prompt":"","output_path":"eval/generated/hard/InheritanceCollections.scm","extract":"raw"}

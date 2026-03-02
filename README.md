@@ -135,6 +135,103 @@ Expected result:
 Validated log:
 
 - `logs/eval-20260303-002512.jsonl`
+- `logs/eval-20260303-003236.jsonl` (same control rerun after README updates)
+
+## Online JADE schema/function validation
+
+To verify parser/loader behavior against real public JADE code, we downloaded schema files from
+`github.com/jadesoftwarenz` into `eval/online_samples/` and ran compile-only checks.
+
+Task file:
+
+- `eval/tasks.online_compile.jsonl`
+
+Run:
+
+```bash
+python3 eval/run_jade_eval.py \
+  --models qwen3.5:122b \
+  --tasks-file eval/tasks.online_compile.jsonl \
+  --project-path /Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai \
+  --compile-mode parallels \
+  --parallels-vm "Windows 11" \
+  --compile-cmd 'C:\Jade2025\bin\jadloadb.exe path=C:\Jade2025\system ini=C:\Jade2025\system\jade.ini schemaFile={task_output_path} showProgress=false' \
+  --skip-ollama
+```
+
+Validated log:
+
+- `logs/eval-20260303-010628.jsonl`
+
+Observed result:
+
+- 4 files compiled successfully.
+- 1 file failed with `Compile Error 6020 - Unknown schema` because it references
+  `WebServiceUtilitiesSchema::...` (missing dependency in the current DB load context).
+
+Sources used:
+
+- https://github.com/jadesoftwarenz/JADE-WP-Asynchronous-Method-Calls/blob/master/AsynchMethodExample.scm
+- https://github.com/jadesoftwarenz/JADE-WP-XML/blob/master/XMLWhitePaper.scm
+- https://github.com/jadesoftwarenz/JADE-Google-Analytics/blob/master/GoogleAnalytics/GoogleAnalytics.scm
+- https://github.com/jadesoftwarenz/JADE-Banking-Schema/blob/master/BankingSchema/BankingModelSchema.scm
+- https://github.com/jadesoftwarenz/JADE-WP-SOAP-Web-Service-Security/blob/master/CalculatorServices.scm
+
+## Harness proof on online code (valid vs intentionally broken)
+
+Task file:
+
+- `eval/tasks.online_harness_validation.jsonl`
+
+Run:
+
+```bash
+python3 eval/run_jade_eval.py \
+  --models qwen3.5:122b \
+  --tasks-file eval/tasks.online_harness_validation.jsonl \
+  --project-path /Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai \
+  --compile-mode parallels \
+  --parallels-vm "Windows 11" \
+  --compile-cmd 'C:\Jade2025\bin\jadloadb.exe path=C:\Jade2025\system ini=C:\Jade2025\system\jade.ini schemaFile={task_output_path} showProgress=false' \
+  --skip-ollama
+```
+
+Validated log:
+
+- `logs/eval-20260303-010714.jsonl`
+
+Observed result:
+
+- `online_valid_xmlwhitepaper`: pass (`compile_ok=true`, exit `0`)
+- `online_broken_xmlwhitepaper`: fail (`compile_ok=false`, exit `255`)
+- Broken file error: `Compile Error 7841 - Expecting: schema definition` at line 1.
+
+## Real compile-only run on existing qwen outputs
+
+Task file:
+
+- `eval/tasks.real_compile_existing.jsonl`
+
+This run reuses generated files and skips model inference to avoid waiting:
+
+```bash
+python3 eval/run_jade_eval.py \
+  --models qwen3.5:122b \
+  --tasks-file eval/tasks.real_compile_existing.jsonl \
+  --project-path /Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai \
+  --compile-mode parallels \
+  --parallels-vm "Windows 11" \
+  --compile-cmd 'C:\Jade2025\bin\jadloadb.exe path=C:\Jade2025\system ini=C:\Jade2025\system\jade.ini schemaFile={task_output_path} showProgress=false' \
+  --skip-ollama
+```
+
+Validated log:
+
+- `logs/eval-20260303-010129.jsonl`
+
+Observed result:
+
+- 0/4 compile pass on existing qwen outputs (all failed with schema-definition parse errors).
 
 ## Example model output snippets (qwen3.5:122b)
 
