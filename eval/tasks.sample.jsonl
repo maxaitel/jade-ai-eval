@@ -1,0 +1,3 @@
+{"id":"jade_compile_baseline","prompt":"Inspect the project and propose the smallest change to keep it compiling."}
+{"id":"jade_refactor_safety","prompt":"Suggest one safe refactor that should preserve compilation and explain why."}
+
