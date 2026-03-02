@@ -1,0 +1,2 @@
+{"id":"control_valid_schema","prompt":"","output_path":"eval/controls/valid_reportwriter.scm","extract":"raw"}
+{"id":"control_invalid_schema","prompt":"","output_path":"eval/controls/invalid_schema.scm","extract":"raw"}

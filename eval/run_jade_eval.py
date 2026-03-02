@@ -16,9 +16,12 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
-from pathlib import Path
+import urllib.error
+import urllib.request
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
@@ -51,6 +54,41 @@ def parse_args() -> argparse.Namespace:
         help="Compile command. If omitted, a command is auto-detected when possible.",
     )
     parser.add_argument(
+        "--compile-mode",
+        choices=["local", "parallels"],
+        default="local",
+        help="Where to run compile command (default: local).",
+    )
+    parser.add_argument(
+        "--parallels-vm",
+        default=None,
+        help='Parallels VM name/ID (required when --compile-mode parallels).',
+    )
+    parser.add_argument(
+        "--parallels-project-path",
+        default=None,
+        help=(
+            "Project path inside Parallels guest. If omitted, macOS "
+            "/Users/<name>/... paths are mapped to C:\\Mac\\Home\\..."
+        ),
+    )
+    parser.add_argument(
+        "--parallels-shell",
+        choices=["cmd", "powershell"],
+        default="cmd",
+        help="Shell inside Parallels guest for compile command.",
+    )
+    parser.add_argument(
+        "--parallels-user",
+        default=None,
+        help="Guest username for prlctl exec. Defaults to --current-user.",
+    )
+    parser.add_argument(
+        "--parallels-password-env",
+        default=None,
+        help="Environment variable name that stores guest password for --parallels-user.",
+    )
+    parser.add_argument(
         "--skip-ollama",
         action="store_true",
         help="Skip model calls and only log compile status.",
@@ -61,6 +99,15 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Ollama server URL (sets OLLAMA_HOST for subprocess), "
             f"defaults to {DEFAULT_OLLAMA_HOST}"
+        ),
+    )
+    parser.add_argument(
+        "--ollama-mode",
+        choices=["auto", "cli", "http"],
+        default="auto",
+        help=(
+            "How to call Ollama: auto (cli if present, else http), "
+            "cli (ollama binary), or http (POST /api/generate)."
         ),
     )
     parser.add_argument(
@@ -161,7 +208,122 @@ def run_shell(command: str, cwd: Path, timeout_sec: int) -> dict[str, Any]:
         }
 
 
-def run_ollama(model: str, prompt: str, timeout_sec: int, ollama_host: str) -> dict[str, Any]:
+def map_mac_path_to_parallels(path: Path) -> str | None:
+    resolved = path.resolve()
+    parts = resolved.parts
+    if len(parts) >= 3 and parts[1] == "Users":
+        mapped = PureWindowsPath("C:/Mac/Home")
+        for part in parts[3:]:
+            mapped /= part
+        return str(mapped)
+    if len(parts) >= 2 and parts[1] == "Volumes":
+        mapped = PureWindowsPath("C:/Mac/Volumes")
+        for part in parts[2:]:
+            mapped /= part
+        return str(mapped)
+    return None
+
+
+def resolve_parallels_project_path(project_path: Path, explicit_path: str | None) -> str:
+    if explicit_path:
+        return explicit_path
+    mapped = map_mac_path_to_parallels(project_path)
+    if mapped:
+        return mapped
+    raise ValueError(
+        "Could not map project path for Parallels guest. "
+        "Pass --parallels-project-path explicitly."
+    )
+
+
+def run_compile_in_parallels(
+    command: str,
+    timeout_sec: int,
+    vm: str,
+    project_path_guest: str,
+    shell_name: str,
+    user: str | None,
+    password_env: str | None,
+) -> dict[str, Any]:
+    started = time.time()
+    prlctl_cmd = ["prlctl", "exec", vm]
+
+    if user:
+        prlctl_cmd.extend(["--user", user])
+        if password_env:
+            password = os.getenv(password_env)
+            if not password:
+                raise ValueError(
+                    f"Environment variable {password_env!r} is not set for --parallels-password-env."
+                )
+            prlctl_cmd.extend(["--password", password])
+    else:
+        prlctl_cmd.append("--current-user")
+
+    if shell_name == "powershell":
+        remote = f'Set-Location -LiteralPath "{project_path_guest}"; {command}'
+        prlctl_cmd.extend(["powershell.exe", "-NoProfile", "-Command", remote])
+    else:
+        remote = f'cd /d "{project_path_guest}" && {command}'
+        prlctl_cmd.extend(["cmd.exe", "/c", remote])
+
+    try:
+        proc = subprocess.run(
+            prlctl_cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+            check=False,
+        )
+        return {
+            "ok": proc.returncode == 0,
+            "exit_code": proc.returncode,
+            "stdout": proc.stdout,
+            "stderr": proc.stderr,
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": False,
+        }
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "ok": False,
+            "exit_code": None,
+            "stdout": exc.stdout or "",
+            "stderr": exc.stderr or "",
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": True,
+        }
+
+
+def run_compile(
+    command: str,
+    project_path: Path,
+    timeout_sec: int,
+    compile_mode: str,
+    parallels_vm: str | None,
+    parallels_project_path: str | None,
+    parallels_shell: str,
+    parallels_user: str | None,
+    parallels_password_env: str | None,
+) -> dict[str, Any]:
+    if compile_mode == "local":
+        return run_shell(command, project_path, timeout_sec)
+
+    if not parallels_vm:
+        raise ValueError("--parallels-vm is required when --compile-mode parallels")
+
+    guest_path = resolve_parallels_project_path(project_path, parallels_project_path)
+    return run_compile_in_parallels(
+        command=command,
+        timeout_sec=timeout_sec,
+        vm=parallels_vm,
+        project_path_guest=guest_path,
+        shell_name=parallels_shell,
+        user=parallels_user,
+        password_env=parallels_password_env,
+    )
+
+
+def run_ollama_cli(model: str, prompt: str, timeout_sec: int, ollama_host: str) -> dict[str, Any]:
     started = time.time()
     env = os.environ.copy()
     env["OLLAMA_HOST"] = ollama_host
@@ -191,6 +353,99 @@ def run_ollama(model: str, prompt: str, timeout_sec: int, ollama_host: str) -> d
             "duration_sec": round(time.time() - started, 3),
             "timeout": True,
         }
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "exit_code": None,
+            "response": "",
+            "stderr": "ollama CLI not found in PATH",
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": False,
+        }
+
+
+def run_ollama_http(model: str, prompt: str, timeout_sec: int, ollama_host: str) -> dict[str, Any]:
+    started = time.time()
+    url = ollama_host.rstrip("/") + "/api/generate"
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+        parsed = json.loads(body)
+        if isinstance(parsed, dict) and parsed.get("error"):
+            return {
+                "ok": False,
+                "exit_code": None,
+                "response": "",
+                "stderr": str(parsed.get("error")),
+                "duration_sec": round(time.time() - started, 3),
+                "timeout": False,
+            }
+        response_text = str(parsed.get("response", "")) if isinstance(parsed, dict) else body
+        return {
+            "ok": True,
+            "exit_code": 0,
+            "response": response_text,
+            "stderr": "",
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": False,
+        }
+    except urllib.error.HTTPError as exc:
+        try:
+            err = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            err = str(exc)
+        return {
+            "ok": False,
+            "exit_code": exc.code,
+            "response": "",
+            "stderr": err,
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": False,
+        }
+    except TimeoutError:
+        return {
+            "ok": False,
+            "exit_code": None,
+            "response": "",
+            "stderr": "ollama HTTP request timed out",
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": True,
+        }
+    except urllib.error.URLError as exc:
+        return {
+            "ok": False,
+            "exit_code": None,
+            "response": "",
+            "stderr": str(exc.reason),
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": False,
+        }
+
+
+def run_ollama(
+    model: str, prompt: str, timeout_sec: int, ollama_host: str, ollama_mode: str
+) -> dict[str, Any]:
+    if ollama_mode == "http":
+        return run_ollama_http(model, prompt, timeout_sec, ollama_host)
+
+    if ollama_mode == "cli":
+        return run_ollama_cli(model, prompt, timeout_sec, ollama_host)
+
+    # auto mode
+    if shutil.which("ollama"):
+        return run_ollama_cli(model, prompt, timeout_sec, ollama_host)
+    return run_ollama_http(model, prompt, timeout_sec, ollama_host)
 
 
 def extract_generated_text(response: str, mode: str) -> str:
@@ -218,6 +473,21 @@ def maybe_apply_generated(
     generated = extract_generated_text(ollama_result["response"], task["extract"])
     target_file.write_text(generated + "\n", encoding="utf-8")
     return {"applied": True, "reason": "generated content written", "target_file": str(target_file)}
+
+
+def render_compile_command(
+    compile_cmd_template: str,
+    project_path: Path,
+    task: dict[str, Any],
+    apply_result: dict[str, Any],
+) -> str:
+    task_output_path = task["output_path"] or ""
+    generated_target_file = apply_result.get("target_file") or ""
+    return (
+        compile_cmd_template.replace("{task_output_path}", task_output_path)
+        .replace("{generated_target_file}", generated_target_file)
+        .replace("{project_path}", str(project_path))
+    )
 
 
 def snapshot_original(project_path: Path, output_path: str | None) -> dict[str, Any] | None:
@@ -252,10 +522,12 @@ def main() -> int:
     if not tasks_path.exists():
         raise FileNotFoundError(f"Tasks file does not exist: {tasks_path}")
 
-    compile_cmd = args.compile_cmd or detect_compile_cmd(project_path)
+    compile_cmd = args.compile_cmd
+    if not compile_cmd and args.compile_mode == "local":
+        compile_cmd = detect_compile_cmd(project_path)
     if not compile_cmd:
         raise ValueError(
-            "Could not auto-detect a compile command. Pass --compile-cmd explicitly."
+            "Could not determine compile command. Pass --compile-cmd explicitly."
         )
 
     tasks = load_tasks(tasks_path)
@@ -273,12 +545,17 @@ def main() -> int:
         "started_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "project_path": str(project_path),
         "compile_cmd": compile_cmd,
+        "compile_mode": args.compile_mode,
         "tasks_file": str(tasks_path),
         "models": args.models,
         "skip_ollama": args.skip_ollama,
         "ollama_host": args.ollama_host,
+        "ollama_mode": args.ollama_mode,
         "apply_generated": args.apply_generated,
         "keep_generated": args.keep_generated,
+        "parallels_vm": args.parallels_vm,
+        "parallels_project_path": args.parallels_project_path,
+        "parallels_shell": args.parallels_shell,
     }
     print(json.dumps({"type": "run_start", **run_meta}))
 
@@ -290,7 +567,11 @@ def main() -> int:
                 ollama_result: dict[str, Any] | None = None
                 if not args.skip_ollama and task["prompt"]:
                     ollama_result = run_ollama(
-                        model, task["prompt"], args.timeout_sec, args.ollama_host
+                        model,
+                        task["prompt"],
+                        args.timeout_sec,
+                        args.ollama_host,
+                        args.ollama_mode,
                     )
 
                 apply_result = {"applied": False, "reason": "disabled", "target_file": None}
@@ -298,16 +579,34 @@ def main() -> int:
                     if args.apply_generated:
                         apply_result = maybe_apply_generated(project_path, task, ollama_result)
 
-                    compile_result = run_shell(compile_cmd, project_path, args.timeout_sec)
+                    compile_cmd_rendered = render_compile_command(
+                        compile_cmd_template=compile_cmd,
+                        project_path=project_path,
+                        task=task,
+                        apply_result=apply_result,
+                    )
+                    compile_result = run_compile(
+                        command=compile_cmd_rendered,
+                        project_path=project_path,
+                        timeout_sec=args.timeout_sec,
+                        compile_mode=args.compile_mode,
+                        parallels_vm=args.parallels_vm,
+                        parallels_project_path=args.parallels_project_path,
+                        parallels_shell=args.parallels_shell,
+                        parallels_user=args.parallels_user,
+                        parallels_password_env=args.parallels_password_env,
+                    )
                     record = {
                         "type": "eval_result",
                         "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
                         "model": model,
                         "task_id": task["id"],
                         "ollama_host": args.ollama_host,
+                        "ollama_mode": args.ollama_mode,
+                        "compile_mode": args.compile_mode,
                         "task_output_path": task["output_path"],
                         "task_extract": task["extract"],
-                        "compile_cmd": compile_cmd,
+                        "compile_cmd": compile_cmd_rendered,
                         "compile_ok": compile_result["ok"],
                         "compile_exit_code": compile_result["exit_code"],
                         "compile_timeout": compile_result["timeout"],
