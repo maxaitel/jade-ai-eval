@@ -1,6 +1,3 @@
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
 param(
     [Parameter(Mandatory = $false)]
     [string[]]$Models = @("qwen3.5:122b"),
@@ -18,6 +15,9 @@ param(
     [switch]$ApplyGenerated,
     [switch]$KeepGenerated
 )
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $RepoRoot
@@ -53,4 +53,3 @@ if ($KeepGenerated) {
 }
 
 & $Python @ArgsList
-
