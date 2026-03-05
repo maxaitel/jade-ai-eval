@@ -1,0 +1,59 @@
+{
+  "created_at": "2026-03-05T07:37:21.785792+00:00",
+  "profiles_file": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/eval/profiles/openwebui_jade_agent_profiles.json",
+  "run_root": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T203721",
+  "model": "qwen3.5:9b",
+  "tasks_csv": "jade_one_method_eval_tasks_140.csv",
+  "max_tasks": 4,
+  "wall_timeout_sec": 3600,
+  "baseline_retrieval_config": {
+    "ENABLE_RAG_HYBRID_SEARCH": true,
+    "RELEVANCE_THRESHOLD": 1.0,
+    "TOP_K": 8,
+    "TOP_K_RERANKER": 8,
+    "HYBRID_BM25_WEIGHT": 0.5
+  },
+  "results": [
+    {
+      "name": "jade_fast_nothink_rag2_dense",
+      "description": "Primary fast path: DevRef + DbAdmin with dense retrieval.",
+      "think": "false",
+      "timeout_sec": 180,
+      "file_ids": [
+        "dbf04167-3d69-4a24-97ad-d06375f51718",
+        "615670aa-ac3f-430b-b77e-8ecf58df18e7"
+      ],
+      "retrieval_config": {
+        "ENABLE_RAG_HYBRID_SEARCH": false,
+        "RELEVANCE_THRESHOLD": 0.5,
+        "TOP_K": 8,
+        "TOP_K_RERANKER": 8,
+        "HYBRID_BM25_WEIGHT": 0.5
+      },
+      "status": "ok",
+      "return_code": 0,
+      "wall_sec": 673.985,
+      "run_dir": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T203721/jade_fast_nothink_rag2_dense",
+      "overall_pass_rate": 0.25,
+      "structural_pass_rate": 0.25,
+      "count": 4,
+      "generated_rows": 4,
+      "generated_nonempty": 1,
+      "ollama_ok_count": 1,
+      "ollama_timeout_count": 3,
+      "avg_ollama_duration_sec": 168.457,
+      "stdout_tail": "\": \"wrapped_schema\", \"ollama_host\": \"http://100.116.25.114:11434\", \"ollama_mode\": \"auto\", \"ollama_think\": \"false\", \"openwebui_url\": \"http://100.116.25.114:3001\", \"openwebui_api_key_env\": \"OPENWEBUI_API_KEY\", \"openwebui_files\": [{\"type\": \"file\", \"id\": \"dbf04167-3d69-4a24-97ad-d06375f51718\"}, {\"type\": \"file\", \"id\": \"615670aa-ac3f-430b-b77e-8ecf58df18e7\"}]}\n{\"phase\": \"generate\", \"model\": \"qwen3.5:9b\", \"task_id\": \"J001\", \"done\": 1, \"total\": 4, \"ollama_ok\": true}\n{\"phase\": \"generate\", \"model\": \"qwen3.5:9b\", \"task_id\": \"J002\", \"done\": 2, \"total\": 4, \"ollama_ok\": false}\n{\"phase\": \"generate\", \"model\": \"qwen3.5:9b\", \"task_id\": \"J003\", \"done\": 3, \"total\": 4, \"ollama_ok\": false}\n{\"phase\": \"generate\", \"model\": \"qwen3.5:9b\", \"task_id\": \"J004\", \"done\": 4, \"total\": 4, \"ollama_ok\": false}\n{\"phase\": \"evaluate\", \"model\": \"qwen3.5:9b\", \"task_id\": \"J001\", \"done\": 1, \"total\": 4, \"overall_pass\": true, \"structural_pass\": true, \"compile_ok\": null}\n{\"phase\": \"evaluate\", \"model\": \"qwen3.5:9b\", \"task_id\": \"J002\", \"done\": 2, \"total\": 4, \"overall_pass\": false, \"structural_pass\": false, \"compile_ok\": null}\n{\"phase\": \"evaluate\", \"model\": \"qwen3.5:9b\", \"task_id\": \"J003\", \"done\": 3, \"total\": 4, \"overall_pass\": false, \"structural_pass\": false, \"compile_ok\": null}\n{\"phase\": \"evaluate\", \"model\": \"qwen3.5:9b\", \"task_id\": \"J004\", \"done\": 4, \"total\": 4, \"overall_pass\": false, \"structural_pass\": false, \"compile_ok\": null}\n{\"type\": \"run_end\", \"timestamp_utc\": \"2026-03-05T07:48:37.357216+00:00\", \"run_dir\": \"/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T203721/jade_fast_nothink_rag2_dense\", \"results_jsonl\": \"/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T203721/jade_fast_nothink_rag2_dense/results.jsonl\", \"summary_json\": \"/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T203721/jade_fast_nothink_rag2_dense/summary.json\"}\n",
+      "stderr_tail": ""
+    }
+  ],
+  "interrupted": true,
+  "interrupted_at": "2026-03-05T07:54:34.928205+00:00",
+  "restored_at": "2026-03-05T07:54:40.079853+00:00",
+  "restored_retrieval_config": {
+    "ENABLE_RAG_HYBRID_SEARCH": true,
+    "RELEVANCE_THRESHOLD": 1.0,
+    "TOP_K": 8,
+    "TOP_K_RERANKER": 8,
+    "HYBRID_BM25_WEIGHT": 0.5
+  }
+}

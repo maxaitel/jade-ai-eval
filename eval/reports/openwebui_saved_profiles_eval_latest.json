@@ -1,0 +1,57 @@
+{
+  "created_at": "2026-03-05T07:56:41.175454+00:00",
+  "profiles_file": "/private/tmp/jade_profile2_only.json",
+  "run_root": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T205640",
+  "model": "qwen3.5:9b",
+  "tasks_csv": "jade_one_method_eval_tasks_140.csv",
+  "max_tasks": 1,
+  "wall_timeout_sec": 900,
+  "baseline_retrieval_config": {
+    "ENABLE_RAG_HYBRID_SEARCH": true,
+    "RELEVANCE_THRESHOLD": 1.0,
+    "TOP_K": 8,
+    "TOP_K_RERANKER": 8,
+    "HYBRID_BM25_WEIGHT": 0.5
+  },
+  "results": [
+    {
+      "name": "jade_fallback_think_rag1_dense",
+      "description": "Fallback quality path: DevRef only with dense retrieval.",
+      "think": "true",
+      "timeout_sec": 300,
+      "file_ids": [
+        "dbf04167-3d69-4a24-97ad-d06375f51718"
+      ],
+      "retrieval_config": {
+        "ENABLE_RAG_HYBRID_SEARCH": false,
+        "RELEVANCE_THRESHOLD": 0.5,
+        "TOP_K": 8,
+        "TOP_K_RERANKER": 8,
+        "HYBRID_BM25_WEIGHT": 0.5
+      },
+      "status": "ok",
+      "return_code": 0,
+      "wall_sec": 273.78,
+      "run_dir": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T205640/jade_fallback_think_rag1_dense",
+      "overall_pass_rate": 1.0,
+      "structural_pass_rate": 1.0,
+      "count": 1,
+      "generated_rows": 1,
+      "generated_nonempty": 1,
+      "ollama_ok_count": 1,
+      "ollama_timeout_count": 0,
+      "avg_ollama_duration_sec": 273.648,
+      "stdout_tail": "{\"type\": \"run_start\", \"timestamp_utc\": \"2026-03-05T07:56:42.044078+00:00\", \"mode\": \"all\", \"run_dir\": \"/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T205640/jade_fallback_think_rag1_dense\", \"tasks_csv\": \"/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/jade_one_method_eval_tasks_140.csv\", \"tasks_count\": 1, \"models\": [\"qwen3.5:9b\"], \"resume\": true, \"llm_backend\": \"openwebui\", \"compile\": false, \"compile_mode\": \"local\", \"compile_input_mode\": \"wrapped_schema\", \"ollama_host\": \"http://100.116.25.114:11434\", \"ollama_mode\": \"auto\", \"ollama_think\": \"true\", \"openwebui_url\": \"http://100.116.25.114:3001\", \"openwebui_api_key_env\": \"OPENWEBUI_API_KEY\", \"openwebui_files\": [{\"type\": \"file\", \"id\": \"dbf04167-3d69-4a24-97ad-d06375f51718\"}]}\n{\"phase\": \"generate\", \"model\": \"qwen3.5:9b\", \"task_id\": \"J001\", \"done\": 1, \"total\": 1, \"ollama_ok\": true}\n{\"phase\": \"evaluate\", \"model\": \"qwen3.5:9b\", \"task_id\": \"J001\", \"done\": 1, \"total\": 1, \"overall_pass\": true, \"structural_pass\": true, \"compile_ok\": null}\n{\"type\": \"run_end\", \"timestamp_utc\": \"2026-03-05T08:01:15.706138+00:00\", \"run_dir\": \"/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T205640/jade_fallback_think_rag1_dense\", \"results_jsonl\": \"/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T205640/jade_fallback_think_rag1_dense/results.jsonl\", \"summary_json\": \"/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/openwebui_saved_profiles_eval/20260305T205640/jade_fallback_think_rag1_dense/summary.json\"}\n",
+      "stderr_tail": ""
+    }
+  ],
+  "interrupted": false,
+  "restored_at": "2026-03-05T08:01:17.895362+00:00",
+  "restored_retrieval_config": {
+    "ENABLE_RAG_HYBRID_SEARCH": true,
+    "RELEVANCE_THRESHOLD": 1.0,
+    "TOP_K": 8,
+    "TOP_K_RERANKER": 8,
+    "HYBRID_BM25_WEIGHT": 0.5
+  }
+}
