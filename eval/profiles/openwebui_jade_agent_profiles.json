@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "description": "Saved OpenWebUI RAG profiles for JADE one-method eval flow.",
+  "defaults": {
+    "tasks_csv": "jade_one_method_eval_tasks_140.csv",
+    "model": "qwen3.5:9b",
+    "llm_backend": "openwebui",
+    "openwebui_url_env": "OPENWEBUI_URL",
+    "openwebui_api_key_env": "OPENWEBUI_API_KEY"
+  },
+  "profiles": [
+    {
+      "name": "jade_fast_nothink_rag2_dense",
+      "think": "false",
+      "description": "Primary fast path: DevRef + DbAdmin with dense retrieval.",
+      "retrieval_config": {
+        "ENABLE_RAG_HYBRID_SEARCH": false,
+        "RELEVANCE_THRESHOLD": 0.5,
+        "TOP_K": 8,
+        "TOP_K_RERANKER": 8,
+        "HYBRID_BM25_WEIGHT": 0.5
+      },
+      "file_ids": [
+        "dbf04167-3d69-4a24-97ad-d06375f51718",
+        "615670aa-ac3f-430b-b77e-8ecf58df18e7"
+      ],
+      "timeout_sec": 180
+    },
+    {
+      "name": "jade_fallback_think_rag1_dense",
+      "think": "true",
+      "description": "Fallback quality path: DevRef only with dense retrieval.",
+      "retrieval_config": {
+        "ENABLE_RAG_HYBRID_SEARCH": false,
+        "RELEVANCE_THRESHOLD": 0.5,
+        "TOP_K": 8,
+        "TOP_K_RERANKER": 8,
+        "HYBRID_BM25_WEIGHT": 0.5
+      },
+      "file_ids": [
+        "dbf04167-3d69-4a24-97ad-d06375f51718"
+      ],
+      "timeout_sec": 300
+    }
+  ]
+}
