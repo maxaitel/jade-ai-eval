@@ -307,9 +307,11 @@ def main() -> int:
         "wall_timeout_sec": args.wall_timeout_sec,
         "baseline_retrieval_config": restore_payload,
         "results": [],
+        "interrupted": False,
     }
 
     print(json.dumps({"phase": "start", "run_root": str(run_root), "profiles": len(profiles)}), flush=True)
+    exit_code = 0
     try:
         for i, profile in enumerate(profiles, start=1):
             name = str(profile.get("name", f"profile_{i}"))
@@ -364,6 +366,11 @@ def main() -> int:
                 ),
                 flush=True,
             )
+    except KeyboardInterrupt:
+        consolidated["interrupted"] = True
+        consolidated["interrupted_at"] = utc_now()
+        exit_code = 130
+        print(json.dumps({"phase": "interrupted"}), flush=True)
     finally:
         client.update_retrieval_config(restore_payload)
         consolidated["restored_at"] = utc_now()
@@ -388,7 +395,7 @@ def main() -> int:
         ),
         flush=True,
     )
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":
