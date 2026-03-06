@@ -1,0 +1,212 @@
+{
+  "generated_at": "2026-03-06T01:55:58.594322+00:00",
+  "model": "jade-qwen35-9b-jade:latest",
+  "easy_source_csv": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/eval/controls/easy_subset_20260306.csv",
+  "hard_source_jsonl": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/eval/tasks.jade.hard.jsonl",
+  "easy_results_jsonl": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/eval_jade_qwen35_9b_jade_easy_20260306/results.jsonl",
+  "hard_results_jsonl": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/eval_jade_qwen35_9b_jade_hard_20260306.jsonl",
+  "totals": {
+    "tasks": 10,
+    "compile_ok": 0,
+    "ollama_ok": 10,
+    "total_compile_errors": 10
+  },
+  "by_pack": {
+    "easy_csv": {
+      "tasks": 6,
+      "compile_ok": 0,
+      "ollama_ok": 6,
+      "total_compile_errors": 6,
+      "structural_pass": 2
+    },
+    "hard_jsonl": {
+      "tasks": 4,
+      "compile_ok": 0,
+      "ollama_ok": 4,
+      "total_compile_errors": 4,
+      "structural_pass": 0
+    }
+  },
+  "tasks": [
+    {
+      "pack": "easy_csv",
+      "task_id": "J001",
+      "task_name": "addIntegers",
+      "category": "integer_boolean",
+      "difficulty": "easy",
+      "ollama_ok": true,
+      "structural_pass": false,
+      "compile_ok": false,
+      "compile_error_count": 1,
+      "first_error": {
+        "code": "7039",
+        "message": "Expecting: )"
+      },
+      "first_error_line": 624,
+      "compile_duration_sec": 4.521,
+      "notes": null
+    },
+    {
+      "pack": "easy_csv",
+      "task_id": "J027",
+      "task_name": "isPowerOfTwo",
+      "category": "integer_boolean",
+      "difficulty": "easy",
+      "ollama_ok": true,
+      "structural_pass": true,
+      "compile_ok": false,
+      "compile_error_count": 1,
+      "first_error": {
+        "code": "6025",
+        "message": "Unknown method"
+      },
+      "first_error_line": 626,
+      "compile_duration_sec": 3.856,
+      "notes": null
+    },
+    {
+      "pack": "easy_csv",
+      "task_id": "J051",
+      "task_name": "parseIntegerOrZero",
+      "category": "numeric_conversion",
+      "difficulty": "easy",
+      "ollama_ok": true,
+      "structural_pass": false,
+      "compile_ok": false,
+      "compile_error_count": 1,
+      "first_error": {
+        "code": "6025",
+        "message": "Unknown method"
+      },
+      "first_error_line": 633,
+      "compile_duration_sec": 2.782,
+      "notes": null
+    },
+    {
+      "pack": "easy_csv",
+      "task_id": "J079",
+      "task_name": "removeSpaces",
+      "category": "string_character",
+      "difficulty": "easy",
+      "ollama_ok": true,
+      "structural_pass": false,
+      "compile_ok": false,
+      "compile_error_count": 1,
+      "first_error": {
+        "code": "7785",
+        "message": "Expecting: jade method source"
+      },
+      "first_error_line": 1,
+      "compile_duration_sec": 2.802,
+      "notes": null
+    },
+    {
+      "pack": "easy_csv",
+      "task_id": "J118",
+      "task_name": "quarterOfYear",
+      "category": "date_time",
+      "difficulty": "easy",
+      "ollama_ok": true,
+      "structural_pass": false,
+      "compile_ok": false,
+      "compile_error_count": 1,
+      "first_error": {
+        "code": "7039",
+        "message": "Expecting: )"
+      },
+      "first_error_line": 635,
+      "compile_duration_sec": 2.822,
+      "notes": null
+    },
+    {
+      "pack": "easy_csv",
+      "task_id": "J121",
+      "task_name": "sumIntegerArray",
+      "category": "array_collection",
+      "difficulty": "easy",
+      "ollama_ok": true,
+      "structural_pass": true,
+      "compile_ok": false,
+      "compile_error_count": 1,
+      "first_error": {
+        "code": "6025",
+        "message": "Unknown method"
+      },
+      "first_error_line": 631,
+      "compile_duration_sec": 2.79,
+      "notes": null
+    },
+    {
+      "pack": "hard_jsonl",
+      "task_id": "hard_domain_model",
+      "task_name": "hard_domain_model",
+      "category": "hard_schema",
+      "difficulty": "hard",
+      "ollama_ok": true,
+      "structural_pass": null,
+      "compile_ok": false,
+      "compile_error_count": 1,
+      "first_error": {
+        "code": "7841",
+        "message": "Expecting: schema definition"
+      },
+      "first_error_line": 1,
+      "compile_duration_sec": 2.68,
+      "notes": "response begins with <think> tag"
+    },
+    {
+      "pack": "hard_jsonl",
+      "task_id": "hard_inheritance_and_collections",
+      "task_name": "hard_inheritance_and_collections",
+      "category": "hard_schema",
+      "difficulty": "hard",
+      "ollama_ok": true,
+      "structural_pass": null,
+      "compile_ok": false,
+      "compile_error_count": 1,
+      "first_error": {
+        "code": "7841",
+        "message": "Expecting: schema definition"
+      },
+      "first_error_line": 1,
+      "compile_duration_sec": 2.874,
+      "notes": "response begins with <think> tag"
+    },
+    {
+      "pack": "hard_jsonl",
+      "task_id": "hard_validation_and_errors",
+      "task_name": "hard_validation_and_errors",
+      "category": "hard_schema",
+      "difficulty": "hard",
+      "ollama_ok": true,
+      "structural_pass": null,
+      "compile_ok": false,
+      "compile_error_count": 1,
+      "first_error": {
+        "code": "7841",
+        "message": "Expecting: schema definition"
+      },
+      "first_error_line": 1,
+      "compile_duration_sec": 2.861,
+      "notes": "response begins with <think> tag"
+    },
+    {
+      "pack": "hard_jsonl",
+      "task_id": "hard_batch_processing",
+      "task_name": "hard_batch_processing",
+      "category": "hard_schema",
+      "difficulty": "hard",
+      "ollama_ok": true,
+      "structural_pass": null,
+      "compile_ok": false,
+      "compile_error_count": 1,
+      "first_error": {
+        "code": "7841",
+        "message": "Expecting: schema definition"
+      },
+      "first_error_line": 1,
+      "compile_duration_sec": 3.084,
+      "notes": "response begins with <think> tag"
+    }
+  ]
+}

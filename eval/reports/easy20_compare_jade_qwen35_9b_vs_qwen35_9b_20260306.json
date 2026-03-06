@@ -1,0 +1,110 @@
+{
+  "generated_at": "2026-03-06T02:20:00.550220+00:00",
+  "tasks_csv": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/eval/controls/easy_subset_20_20260306.csv",
+  "results_jsonl": "/Users/maxaitel/Documents/school-projects/jade-ai-training/jade-ai/logs/eval_compare_easy20_20260306/results.jsonl",
+  "summary": {
+    "generated_at": "2026-03-06T02:19:18.736794+00:00",
+    "models": {
+      "jade-qwen35-9b-jade:latest": {
+        "compile_checked": 20,
+        "compile_ok": 3,
+        "compile_pass_rate": 0.15,
+        "count": 20,
+        "overall_pass": 3,
+        "overall_pass_rate": 0.15,
+        "structural_pass": 19,
+        "structural_pass_rate": 0.95
+      },
+      "qwen3.5:9b": {
+        "compile_checked": 20,
+        "compile_ok": 3,
+        "compile_pass_rate": 0.15,
+        "count": 20,
+        "overall_pass": 3,
+        "overall_pass_rate": 0.15,
+        "structural_pass": 20,
+        "structural_pass_rate": 1.0
+      }
+    }
+  },
+  "models": {
+    "jade-qwen35-9b-jade:latest": {
+      "compile_ok_tasks": [
+        "J001",
+        "J002",
+        "J003"
+      ],
+      "top_failure_reasons": [
+        [
+          "6400 Unexpected token",
+          7
+        ],
+        [
+          "6027 Unknown identifier",
+          6
+        ],
+        [
+          "6026 Unknown property or method",
+          2
+        ],
+        [
+          "6084 Cannot assign to constant",
+          1
+        ],
+        [
+          "7039 Expecting: )",
+          1
+        ]
+      ]
+    },
+    "qwen3.5:9b": {
+      "compile_ok_tasks": [
+        "J001",
+        "J002",
+        "J031"
+      ],
+      "top_failure_reasons": [
+        [
+          "6026 Unknown property or method",
+          4
+        ],
+        [
+          "6027 Unknown identifier",
+          3
+        ],
+        [
+          "6025 Unknown method",
+          3
+        ],
+        [
+          "7039 Expecting: )",
+          2
+        ],
+        [
+          "7881 Expecting: arithmetic expression",
+          2
+        ],
+        [
+          "6061 Non-numeric operand",
+          2
+        ],
+        [
+          "6004 Invalid token",
+          1
+        ]
+      ]
+    }
+  },
+  "task_deltas": [
+    {
+      "task_id": "J003",
+      "jade-qwen35-9b-jade:latest": true,
+      "qwen3.5:9b": false
+    },
+    {
+      "task_id": "J031",
+      "jade-qwen35-9b-jade:latest": false,
+      "qwen3.5:9b": true
+    }
+  ]
+}

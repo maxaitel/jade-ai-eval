@@ -92,6 +92,12 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--llm-backend",
+        choices=["ollama", "openwebui"],
+        default="ollama",
+        help="Model generation backend: direct Ollama or Open WebUI chat API.",
+    )
+    parser.add_argument(
         "--ollama-host",
         default=base_eval.DEFAULT_OLLAMA_HOST,
         help="Ollama host URL",
@@ -101,6 +107,44 @@ def parse_args() -> argparse.Namespace:
         choices=["auto", "cli", "http"],
         default="auto",
         help="How to call Ollama",
+    )
+    parser.add_argument(
+        "--ollama-think",
+        choices=["auto", "true", "false"],
+        default="auto",
+        help=(
+            "Thinking mode for supported models. "
+            "Use false for faster non-thinking responses, true to force thinking, "
+            "or auto to leave model default behavior."
+        ),
+    )
+    parser.add_argument(
+        "--openwebui-url",
+        default="http://localhost:3000",
+        help="Open WebUI base URL used when --llm-backend openwebui.",
+    )
+    parser.add_argument(
+        "--openwebui-api-key-env",
+        default="OPENWEBUI_API_KEY",
+        help="Environment variable containing the Open WebUI API key.",
+    )
+    parser.add_argument(
+        "--openwebui-collection-id",
+        action="append",
+        default=[],
+        help=(
+            "Knowledge collection ID to attach for RAG. "
+            "Repeat this flag to attach multiple collections."
+        ),
+    )
+    parser.add_argument(
+        "--openwebui-file-id",
+        action="append",
+        default=[],
+        help=(
+            "File ID to attach for RAG. "
+            "Repeat this flag to attach multiple files."
+        ),
     )
     parser.add_argument(
         "--extract",
@@ -429,6 +473,114 @@ def signature_to_jade_declaration(signature: str, include_semicolon: bool = True
     return f"{decl};" if include_semicolon else decl
 
 
+def extract_named_method_block(text: str, method_name: str) -> str | None:
+    lines = text.replace("\r\n", "\n").splitlines()
+    target = method_name.lower()
+
+    for index, line in enumerate(lines):
+        if line.strip().lower() != target:
+            continue
+
+        brace_index = index + 1
+        while brace_index < len(lines) and not lines[brace_index].strip():
+            brace_index += 1
+        if brace_index >= len(lines) or lines[brace_index].strip() != "{":
+            continue
+
+        body_lines: list[str] = []
+        for body_index in range(brace_index + 1, len(lines)):
+            if lines[body_index].strip() == "}":
+                return "\n".join(body_lines).strip()
+            body_lines.append(lines[body_index])
+
+    return None
+
+
+def find_first_begin_end_block(text: str) -> str | None:
+    match = re.search(r"\bbegin\b.*?\bend;", text, flags=re.IGNORECASE | re.DOTALL)
+    if not match:
+        return None
+    return match.group(0).strip()
+
+
+def trim_method_noise(text: str) -> str:
+    lines = text.replace("\r\n", "\n").splitlines()
+    stop_patterns = [
+        r"^\s*\)\s*$",
+        r"^\s*JadeScript\b",
+        r"^\s*Form\b",
+        r"^\s*schema\b",
+        r"^\s*typeSources\b",
+        r"^\s*jadeMethodSources\b",
+        r"^\s*jadeMethodDefinitions\b",
+        r"^\s*class\b",
+        r"^\s*Explanation\b",
+        r"^\s*Notes?\b",
+    ]
+
+    kept: list[str] = []
+    for line in lines:
+        if kept and any(re.search(pattern, line, flags=re.IGNORECASE) for pattern in stop_patterns):
+            break
+        kept.append(line)
+
+    cleaned = "\n".join(kept).strip()
+    cleaned = re.sub(r"\n\s*}\s*$", "", cleaned).strip()
+    return cleaned
+
+
+def wrap_as_method_body(text: str) -> str:
+    statements = text.strip()
+    if not statements:
+        return "begin\nend;"
+
+    lines = []
+    for raw_line in statements.splitlines():
+        line = raw_line.rstrip()
+        if line:
+            lines.append(f"\t{line}")
+        else:
+            lines.append("")
+    payload = "\n".join(lines).strip("\n")
+    return f"begin\n{payload}\nend;"
+
+
+def normalize_generated_method_source(task: dict[str, str], generated_text: str) -> str:
+    parsed = parse_signature(task["signature"])
+    if not parsed["parse_ok"]:
+        return generated_text.strip()
+
+    method_name = str(parsed["name"])
+    expected_decl = signature_to_jade_declaration(task["signature"], include_semicolon=True)
+    cleaned = re.sub(r"<think\b[^>]*>.*?</think>", "", generated_text, flags=re.IGNORECASE | re.DOTALL)
+    cleaned = re.sub(r"</?think\b[^>]*>", "", cleaned, flags=re.IGNORECASE).strip()
+
+    named_block = extract_named_method_block(cleaned, method_name)
+    if named_block is not None:
+        candidate = named_block.strip()
+    else:
+        cleaned = trim_method_noise(cleaned)
+        begin_block = find_first_begin_end_block(cleaned)
+        if begin_block is not None:
+            candidate = begin_block
+        else:
+            candidate = cleaned
+
+    candidate = trim_method_noise(candidate)
+    if not re.search(r"\bbegin\b", candidate, flags=re.IGNORECASE):
+        candidate = wrap_as_method_body(candidate)
+
+    signature_pattern = re.compile(rf"^\s*{re.escape(method_name)}\s*\(", flags=re.IGNORECASE)
+    candidate_lines = candidate.splitlines()
+    if candidate_lines and signature_pattern.search(candidate_lines[0]):
+        candidate_lines[0] = expected_decl
+        candidate = "\n".join(candidate_lines)
+    else:
+        candidate = f"{expected_decl}\n\n{candidate}".strip()
+
+    return candidate.rstrip()
+
+
 def write_wrapped_compile_schema(
     task: dict[str, str],
     generated_code: str,
@@ -506,6 +658,10 @@ def run_generate_phase(
 ) -> None:
     generated_dir = run_dir / "generated"
     generated_log = run_dir / "generated.jsonl"
+    openwebui_files = base_eval.build_openwebui_files(
+        args.openwebui_collection_id,
+        args.openwebui_file_id,
+    )
 
     total = len(tasks)
     for model in args.models:
@@ -526,19 +682,26 @@ def run_generate_phase(
             }
             persist_state(state_path, state)
 
-            ollama_result = base_eval.run_ollama(
+            generation_result = base_eval.run_generation(
+                backend=args.llm_backend,
                 model=model,
                 prompt=task["prompt"],
                 timeout_sec=args.timeout_sec,
                 ollama_host=args.ollama_host,
                 ollama_mode=args.ollama_mode,
+                ollama_think=args.ollama_think,
+                openwebui_url=args.openwebui_url,
+                openwebui_api_key_env=args.openwebui_api_key_env,
+                openwebui_think=args.ollama_think,
+                openwebui_files=openwebui_files,
             )
             generated_text = ""
-            if ollama_result.get("ok"):
+            if generation_result.get("ok"):
                 generated_text = base_eval.extract_generated_text(
-                    str(ollama_result.get("response", "")),
+                    str(generation_result.get("response", "")),
                     args.extract,
                 )
+                generated_text = normalize_generated_method_source(task, generated_text)
 
             model_dir = generated_dir / safe_model_dirname(model)
             target_file = model_dir / f"{task_id}.jade"
@@ -557,12 +720,18 @@ def run_generate_phase(
                 "task_signature": task["signature"],
                 "generated_file": str(target_file),
                 "generated_chars": len(generated_text),
-                "ollama_ok": bool(ollama_result.get("ok")),
-                "ollama_exit_code": ollama_result.get("exit_code"),
-                "ollama_timeout": bool(ollama_result.get("timeout")),
-                "ollama_duration_sec": ollama_result.get("duration_sec"),
-                "ollama_stderr_tail": str(ollama_result.get("stderr", ""))[-2000:],
-                "ollama_response_tail": str(ollama_result.get("response", ""))[-2000:],
+                "llm_backend": args.llm_backend,
+                "openwebui_url": args.openwebui_url if args.llm_backend == "openwebui" else None,
+                "openwebui_files_count": len(openwebui_files)
+                if args.llm_backend == "openwebui"
+                else 0,
+                "ollama_ok": bool(generation_result.get("ok")),
+                "ollama_exit_code": generation_result.get("exit_code"),
+                "ollama_timeout": bool(generation_result.get("timeout")),
+                "ollama_duration_sec": generation_result.get("duration_sec"),
+                "ollama_stderr_tail": str(generation_result.get("stderr", ""))[-2000:],
+                "ollama_response_tail": str(generation_result.get("response", ""))[-2000:],
+                "ollama_think": args.ollama_think,
             }
             append_jsonl(generated_log, record)
 
@@ -946,11 +1115,19 @@ def main() -> int:
         "tasks_count": len(tasks),
         "models": args.models,
         "resume": args.resume,
+        "llm_backend": args.llm_backend,
         "compile": args.compile,
         "compile_mode": args.compile_mode,
         "compile_input_mode": args.compile_input_mode,
         "ollama_host": args.ollama_host,
         "ollama_mode": args.ollama_mode,
+        "ollama_think": args.ollama_think,
+        "openwebui_url": args.openwebui_url,
+        "openwebui_api_key_env": args.openwebui_api_key_env,
+        "openwebui_files": base_eval.build_openwebui_files(
+            args.openwebui_collection_id,
+            args.openwebui_file_id,
+        ),
     }
     append_jsonl(run_dir / "run_events.jsonl", run_meta)
     print(json.dumps(run_meta))

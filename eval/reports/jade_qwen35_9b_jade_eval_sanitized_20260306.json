@@ -1,0 +1,234 @@
+{
+  "generated_at": "2026-03-06T02:10:12.997118+00:00",
+  "model": "jade-qwen35-9b-jade:latest",
+  "code_changes": [
+    "strip <think> tags and prefer code regions in eval/run_jade_eval.py",
+    "normalize one-method outputs into JADE method-source blocks in eval/run_one_method_csv_eval.py"
+  ],
+  "before_after": {
+    "easy_compile_ok_before": 0,
+    "easy_compile_ok_after": 2,
+    "hard_compile_ok_before": 0,
+    "hard_compile_ok_after": 0
+  },
+  "easy_tasks": [
+    {
+      "task_id": "J001",
+      "before": {
+        "task_id": "J001",
+        "compile_ok": false,
+        "structural_pass": false,
+        "errors": 1,
+        "first_error": {
+          "code": "7039",
+          "message": "Expecting: )"
+        }
+      },
+      "after": {
+        "task_id": "J001",
+        "compile_ok": true,
+        "structural_pass": true,
+        "errors": 0,
+        "first_error": null
+      }
+    },
+    {
+      "task_id": "J027",
+      "before": {
+        "task_id": "J027",
+        "compile_ok": false,
+        "structural_pass": true,
+        "errors": 1,
+        "first_error": {
+          "code": "6025",
+          "message": "Unknown method"
+        }
+      },
+      "after": {
+        "task_id": "J027",
+        "compile_ok": false,
+        "structural_pass": true,
+        "errors": 1,
+        "first_error": {
+          "code": "6400",
+          "message": "Unexpected token"
+        }
+      }
+    },
+    {
+      "task_id": "J051",
+      "before": {
+        "task_id": "J051",
+        "compile_ok": false,
+        "structural_pass": false,
+        "errors": 1,
+        "first_error": {
+          "code": "6025",
+          "message": "Unknown method"
+        }
+      },
+      "after": {
+        "task_id": "J051",
+        "compile_ok": true,
+        "structural_pass": true,
+        "errors": 0,
+        "first_error": null
+      }
+    },
+    {
+      "task_id": "J079",
+      "before": {
+        "task_id": "J079",
+        "compile_ok": false,
+        "structural_pass": false,
+        "errors": 1,
+        "first_error": {
+          "code": "7785",
+          "message": "Expecting: jade method source"
+        }
+      },
+      "after": {
+        "task_id": "J079",
+        "compile_ok": false,
+        "structural_pass": true,
+        "errors": 1,
+        "first_error": {
+          "code": "6026",
+          "message": "Unknown property or method"
+        }
+      }
+    },
+    {
+      "task_id": "J118",
+      "before": {
+        "task_id": "J118",
+        "compile_ok": false,
+        "structural_pass": false,
+        "errors": 1,
+        "first_error": {
+          "code": "7039",
+          "message": "Expecting: )"
+        }
+      },
+      "after": {
+        "task_id": "J118",
+        "compile_ok": false,
+        "structural_pass": true,
+        "errors": 1,
+        "first_error": {
+          "code": "7082",
+          "message": "Expecting: endif"
+        }
+      }
+    },
+    {
+      "task_id": "J121",
+      "before": {
+        "task_id": "J121",
+        "compile_ok": false,
+        "structural_pass": true,
+        "errors": 1,
+        "first_error": {
+          "code": "6025",
+          "message": "Unknown method"
+        }
+      },
+      "after": {
+        "task_id": "J121",
+        "compile_ok": false,
+        "structural_pass": true,
+        "errors": 1,
+        "first_error": {
+          "code": "6027",
+          "message": "Unknown identifier"
+        }
+      }
+    }
+  ],
+  "hard_tasks": [
+    {
+      "task_id": "hard_batch_processing",
+      "before": {
+        "task_id": "hard_batch_processing",
+        "compile_ok": false,
+        "errors": 1,
+        "first_error": {
+          "code": "7841",
+          "message": "Expecting: schema definition"
+        }
+      },
+      "after": {
+        "task_id": "hard_batch_processing",
+        "compile_ok": false,
+        "errors": 1,
+        "first_error": {
+          "code": "7841",
+          "message": "Expecting: schema definition"
+        }
+      }
+    },
+    {
+      "task_id": "hard_domain_model",
+      "before": {
+        "task_id": "hard_domain_model",
+        "compile_ok": false,
+        "errors": 1,
+        "first_error": {
+          "code": "7841",
+          "message": "Expecting: schema definition"
+        }
+      },
+      "after": {
+        "task_id": "hard_domain_model",
+        "compile_ok": false,
+        "errors": 1,
+        "first_error": {
+          "code": "7841",
+          "message": "Expecting: schema definition"
+        }
+      }
+    },
+    {
+      "task_id": "hard_inheritance_and_collections",
+      "before": {
+        "task_id": "hard_inheritance_and_collections",
+        "compile_ok": false,
+        "errors": 1,
+        "first_error": {
+          "code": "7841",
+          "message": "Expecting: schema definition"
+        }
+      },
+      "after": {
+        "task_id": "hard_inheritance_and_collections",
+        "compile_ok": false,
+        "errors": 1,
+        "first_error": {
+          "code": "7841",
+          "message": "Expecting: schema definition"
+        }
+      }
+    },
+    {
+      "task_id": "hard_validation_and_errors",
+      "before": {
+        "task_id": "hard_validation_and_errors",
+        "compile_ok": false,
+        "errors": 1,
+        "first_error": {
+          "code": "7841",
+          "message": "Expecting: schema definition"
+        }
+      },
+      "after": {
+        "task_id": "hard_validation_and_errors",
+        "compile_ok": false,
+        "errors": 1,
+        "first_error": {
+          "code": "6229",
+          "message": "Incompatible schema file format"
+        }
+      }
+    }
+  ]
+}

@@ -25,6 +25,8 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
+THINK_TAG_RE = re.compile(r"</?think\b[^>]*>", re.IGNORECASE)
 DEFAULT_OLLAMA_HOST = "http://100.116.25.114:11434"
 
 
@@ -89,6 +91,12 @@ def parse_args() -> argparse.Namespace:
         help="Environment variable name that stores guest password for --parallels-user.",
     )
     parser.add_argument(
+        "--llm-backend",
+        choices=["ollama", "openwebui"],
+        default="ollama",
+        help="Model generation backend: direct Ollama or Open WebUI chat API.",
+    )
+    parser.add_argument(
         "--skip-ollama",
         action="store_true",
         help="Skip model calls and only log compile status.",
@@ -108,6 +116,44 @@ def parse_args() -> argparse.Namespace:
         help=(
             "How to call Ollama: auto (cli if present, else http), "
             "cli (ollama binary), or http (POST /api/generate)."
+        ),
+    )
+    parser.add_argument(
+        "--ollama-think",
+        choices=["auto", "true", "false"],
+        default="auto",
+        help=(
+            "Thinking mode for supported models. "
+            "Use false for faster non-thinking responses, true to force thinking, "
+            "or auto to leave model default behavior."
+        ),
+    )
+    parser.add_argument(
+        "--openwebui-url",
+        default="http://localhost:3000",
+        help="Open WebUI base URL used when --llm-backend openwebui.",
+    )
+    parser.add_argument(
+        "--openwebui-api-key-env",
+        default="OPENWEBUI_API_KEY",
+        help="Environment variable containing the Open WebUI API key.",
+    )
+    parser.add_argument(
+        "--openwebui-collection-id",
+        action="append",
+        default=[],
+        help=(
+            "Knowledge collection ID to attach for RAG. "
+            "Repeat this flag to attach multiple collections."
+        ),
+    )
+    parser.add_argument(
+        "--openwebui-file-id",
+        action="append",
+        default=[],
+        help=(
+            "File ID to attach for RAG. "
+            "Repeat this flag to attach multiple files."
         ),
     )
     parser.add_argument(
@@ -323,13 +369,192 @@ def run_compile(
     )
 
 
-def run_ollama_cli(model: str, prompt: str, timeout_sec: int, ollama_host: str) -> dict[str, Any]:
+def parse_ollama_think_mode(value: str) -> bool | None:
+    normalized = value.strip().lower()
+    if normalized == "auto":
+        return None
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise ValueError(f"Invalid --ollama-think value: {value}")
+
+
+def normalize_chat_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+                continue
+            if not isinstance(item, dict):
+                continue
+            text = item.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+                continue
+            for key in ("content", "value"):
+                value = item.get(key)
+                if isinstance(value, str):
+                    parts.append(value)
+                    break
+        return "\n".join(parts).strip()
+    if isinstance(content, dict):
+        for key in ("text", "content", "value"):
+            value = content.get(key)
+            if isinstance(value, str):
+                return value
+    return str(content) if content is not None else ""
+
+
+def extract_openwebui_response_text(parsed: Any) -> str:
+    if not isinstance(parsed, dict):
+        return ""
+
+    # OpenAI-compatible shape: choices[0].message.content
+    choices = parsed.get("choices")
+    if isinstance(choices, list) and choices:
+        first = choices[0]
+        if isinstance(first, dict):
+            message = first.get("message")
+            if isinstance(message, dict):
+                return normalize_chat_content(message.get("content")).strip()
+
+    # Fallback shapes seen across OSS chat APIs.
+    for key in ("response", "content", "message"):
+        value = parsed.get(key)
+        text = normalize_chat_content(value).strip()
+        if text:
+            return text
+    return ""
+
+
+def build_openwebui_files(
+    collection_ids: list[str] | None,
+    file_ids: list[str] | None,
+) -> list[dict[str, str]]:
+    files: list[dict[str, str]] = []
+    for collection_id in collection_ids or []:
+        cid = collection_id.strip()
+        if cid:
+            files.append({"type": "collection", "id": cid})
+    for file_id in file_ids or []:
+        fid = file_id.strip()
+        if fid:
+            files.append({"type": "file", "id": fid})
+    return files
+
+
+def ollama_cli_supports_think_error(stderr: str) -> bool:
+    normalized = stderr.lower()
+    return "--think" in normalized and "unknown flag" in normalized
+
+
+def run_openwebui_chat(
+    model: str,
+    prompt: str,
+    timeout_sec: int,
+    openwebui_url: str,
+    api_key: str,
+    files: list[dict[str, str]] | None = None,
+    think: bool | None = None,
+) -> dict[str, Any]:
+    started = time.time()
+    url = openwebui_url.rstrip("/") + "/api/chat/completions"
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+    }
+    if think is not None:
+        payload["think"] = think
+    if files:
+        payload["files"] = files
+
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+        parsed = json.loads(body)
+        if isinstance(parsed, dict) and parsed.get("error"):
+            return {
+                "ok": False,
+                "exit_code": None,
+                "response": "",
+                "stderr": str(parsed.get("error")),
+                "duration_sec": round(time.time() - started, 3),
+                "timeout": False,
+            }
+
+        response_text = extract_openwebui_response_text(parsed)
+        return {
+            "ok": True,
+            "exit_code": 0,
+            "response": response_text,
+            "stderr": "",
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": False,
+        }
+    except urllib.error.HTTPError as exc:
+        try:
+            err = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            err = str(exc)
+        return {
+            "ok": False,
+            "exit_code": exc.code,
+            "response": "",
+            "stderr": err,
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": False,
+        }
+    except TimeoutError:
+        return {
+            "ok": False,
+            "exit_code": None,
+            "response": "",
+            "stderr": "openwebui HTTP request timed out",
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": True,
+        }
+    except urllib.error.URLError as exc:
+        return {
+            "ok": False,
+            "exit_code": None,
+            "response": "",
+            "stderr": str(exc.reason),
+            "duration_sec": round(time.time() - started, 3),
+            "timeout": False,
+        }
+
+
+def run_ollama_cli(
+    model: str,
+    prompt: str,
+    timeout_sec: int,
+    ollama_host: str,
+    think: bool | None = None,
+) -> dict[str, Any]:
     started = time.time()
     env = os.environ.copy()
     env["OLLAMA_HOST"] = ollama_host
+    cmd = ["ollama", "run", model]
+    if think is not None:
+        cmd.append(f"--think={'true' if think else 'false'}")
+    cmd.append(prompt)
     try:
         proc = subprocess.run(
-            ["ollama", "run", model, prompt],
+            cmd,
             capture_output=True,
             text=True,
             timeout=timeout_sec,
@@ -364,7 +589,13 @@ def run_ollama_cli(model: str, prompt: str, timeout_sec: int, ollama_host: str) 
         }
 
 
-def run_ollama_http(model: str, prompt: str, timeout_sec: int, ollama_host: str) -> dict[str, Any]:
+def run_ollama_http(
+    model: str,
+    prompt: str,
+    timeout_sec: int,
+    ollama_host: str,
+    think: bool | None = None,
+) -> dict[str, Any]:
     started = time.time()
     url = ollama_host.rstrip("/") + "/api/generate"
     payload = {
@@ -372,6 +603,8 @@ def run_ollama_http(model: str, prompt: str, timeout_sec: int, ollama_host: str)
         "prompt": prompt,
         "stream": False,
     }
+    if think is not None:
+        payload["think"] = think
     req = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
@@ -434,27 +667,128 @@ def run_ollama_http(model: str, prompt: str, timeout_sec: int, ollama_host: str)
 
 
 def run_ollama(
-    model: str, prompt: str, timeout_sec: int, ollama_host: str, ollama_mode: str
+    model: str,
+    prompt: str,
+    timeout_sec: int,
+    ollama_host: str,
+    ollama_mode: str,
+    ollama_think: str = "auto",
 ) -> dict[str, Any]:
+    think = parse_ollama_think_mode(ollama_think)
     if ollama_mode == "http":
-        return run_ollama_http(model, prompt, timeout_sec, ollama_host)
+        return run_ollama_http(model, prompt, timeout_sec, ollama_host, think)
 
     if ollama_mode == "cli":
-        return run_ollama_cli(model, prompt, timeout_sec, ollama_host)
+        return run_ollama_cli(model, prompt, timeout_sec, ollama_host, think)
 
     # auto mode
     if shutil.which("ollama"):
-        return run_ollama_cli(model, prompt, timeout_sec, ollama_host)
-    return run_ollama_http(model, prompt, timeout_sec, ollama_host)
+        cli_result = run_ollama_cli(model, prompt, timeout_sec, ollama_host, think)
+        if think is not None and not cli_result.get("ok"):
+            if ollama_cli_supports_think_error(str(cli_result.get("stderr", ""))):
+                http_result = run_ollama_http(model, prompt, timeout_sec, ollama_host, think)
+                if http_result.get("ok"):
+                    http_result["stderr"] = (
+                        str(http_result.get("stderr", ""))
+                        + "\n[ollama-auto-fallback] local CLI lacks --think; used HTTP API."
+                    ).strip()
+                return http_result
+        return cli_result
+    return run_ollama_http(model, prompt, timeout_sec, ollama_host, think)
+
+
+def run_generation(
+    *,
+    backend: str,
+    model: str,
+    prompt: str,
+    timeout_sec: int,
+    ollama_host: str,
+    ollama_mode: str,
+    ollama_think: str,
+    openwebui_url: str,
+    openwebui_api_key_env: str,
+    openwebui_think: str = "auto",
+    openwebui_files: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    if backend == "openwebui":
+        think = parse_ollama_think_mode(openwebui_think)
+        api_key = os.getenv(openwebui_api_key_env, "").strip()
+        if not api_key:
+            return {
+                "ok": False,
+                "exit_code": None,
+                "response": "",
+                "stderr": (
+                    f"Environment variable {openwebui_api_key_env!r} is not set "
+                    "for Open WebUI API authentication."
+                ),
+                "duration_sec": 0.0,
+                "timeout": False,
+            }
+        return run_openwebui_chat(
+            model=model,
+            prompt=prompt,
+            timeout_sec=timeout_sec,
+            openwebui_url=openwebui_url,
+            api_key=api_key,
+            files=openwebui_files,
+            think=think,
+        )
+
+    return run_ollama(
+        model=model,
+        prompt=prompt,
+        timeout_sec=timeout_sec,
+        ollama_host=ollama_host,
+        ollama_mode=ollama_mode,
+        ollama_think=ollama_think,
+    )
 
 
 def extract_generated_text(response: str, mode: str) -> str:
+    cleaned = THINK_BLOCK_RE.sub("", response)
+    cleaned = THINK_TAG_RE.sub("", cleaned).strip()
+
     if mode == "raw":
-        return response.strip()
-    fenced = re.search(r"```[^\n]*\n(.*?)```", response, flags=re.DOTALL)
+        return trim_to_code_region(cleaned)
+
+    fenced = re.search(r"```[^\n]*\n(.*?)```", cleaned, flags=re.DOTALL)
     if fenced:
-        return fenced.group(1).strip()
-    return response.strip()
+        cleaned = fenced.group(1).strip()
+
+    return trim_to_code_region(cleaned)
+
+
+def trim_to_code_region(text: str) -> str:
+    text = text.replace("\r\n", "\n").strip()
+    if not text:
+        return text
+
+    code_start_patterns = [
+        r"^\s*schema\b",
+        r'^\s*jadeVersion\b',
+        r"^\s*localeDefinitions\b",
+        r"^\s*typeSources\b",
+        r"^\s*jadeMethodSources\b",
+        r"^\s*jadeMethodDefinitions\b",
+        r"^\s*[A-Za-z_]\w*\s*$",
+        r"^\s*begin\b",
+        r"^\s*vars\b",
+        r"^\s*return\b",
+        r"^\s*if\b",
+        r"^\s*foreach\b",
+        r"^\s*for\b",
+    ]
+    starts: list[int] = []
+    for pattern in code_start_patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE)
+        if match:
+            starts.append(match.start())
+    if starts:
+        text = text[min(starts) :].lstrip()
+
+    return text.strip()
 
 
 def maybe_apply_generated(
@@ -531,6 +865,10 @@ def main() -> int:
         )
 
     tasks = load_tasks(tasks_path)
+    openwebui_files = build_openwebui_files(
+        args.openwebui_collection_id,
+        args.openwebui_file_id,
+    )
     logs_dir = Path("logs").resolve()
     logs_dir.mkdir(parents=True, exist_ok=True)
 
@@ -548,9 +886,14 @@ def main() -> int:
         "compile_mode": args.compile_mode,
         "tasks_file": str(tasks_path),
         "models": args.models,
+        "llm_backend": args.llm_backend,
         "skip_ollama": args.skip_ollama,
         "ollama_host": args.ollama_host,
         "ollama_mode": args.ollama_mode,
+        "ollama_think": args.ollama_think,
+        "openwebui_url": args.openwebui_url,
+        "openwebui_api_key_env": args.openwebui_api_key_env,
+        "openwebui_files": openwebui_files,
         "apply_generated": args.apply_generated,
         "keep_generated": args.keep_generated,
         "parallels_vm": args.parallels_vm,
@@ -564,20 +907,26 @@ def main() -> int:
         for model in args.models:
             for task in tasks:
                 snapshot = snapshot_original(project_path, task["output_path"])
-                ollama_result: dict[str, Any] | None = None
+                generation_result: dict[str, Any] | None = None
                 if not args.skip_ollama and task["prompt"]:
-                    ollama_result = run_ollama(
-                        model,
-                        task["prompt"],
-                        args.timeout_sec,
-                        args.ollama_host,
-                        args.ollama_mode,
+                    generation_result = run_generation(
+                        backend=args.llm_backend,
+                        model=model,
+                        prompt=task["prompt"],
+                        timeout_sec=args.timeout_sec,
+                        ollama_host=args.ollama_host,
+                        ollama_mode=args.ollama_mode,
+                        ollama_think=args.ollama_think,
+                        openwebui_url=args.openwebui_url,
+                        openwebui_api_key_env=args.openwebui_api_key_env,
+                        openwebui_think=args.ollama_think,
+                        openwebui_files=openwebui_files,
                     )
 
                 apply_result = {"applied": False, "reason": "disabled", "target_file": None}
                 try:
                     if args.apply_generated:
-                        apply_result = maybe_apply_generated(project_path, task, ollama_result)
+                        apply_result = maybe_apply_generated(project_path, task, generation_result)
 
                     compile_cmd_rendered = render_compile_command(
                         compile_cmd_template=compile_cmd,
@@ -601,8 +950,12 @@ def main() -> int:
                         "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
                         "model": model,
                         "task_id": task["id"],
+                        "llm_backend": args.llm_backend,
                         "ollama_host": args.ollama_host,
                         "ollama_mode": args.ollama_mode,
+                        "ollama_think": args.ollama_think,
+                        "openwebui_url": args.openwebui_url,
+                        "openwebui_files_count": len(openwebui_files),
                         "compile_mode": args.compile_mode,
                         "task_output_path": task["output_path"],
                         "task_extract": task["extract"],
@@ -616,18 +969,24 @@ def main() -> int:
                         "generated_applied": apply_result["applied"],
                         "generated_apply_reason": apply_result["reason"],
                         "generated_target_file": apply_result["target_file"],
-                        "ollama_ok": None if ollama_result is None else ollama_result["ok"],
-                        "ollama_exit_code": None if ollama_result is None else ollama_result["exit_code"],
-                        "ollama_timeout": None if ollama_result is None else ollama_result["timeout"],
+                        "ollama_ok": None
+                        if generation_result is None
+                        else generation_result["ok"],
+                        "ollama_exit_code": None
+                        if generation_result is None
+                        else generation_result["exit_code"],
+                        "ollama_timeout": None
+                        if generation_result is None
+                        else generation_result["timeout"],
                         "ollama_duration_sec": None
-                        if ollama_result is None
-                        else ollama_result["duration_sec"],
+                        if generation_result is None
+                        else generation_result["duration_sec"],
                         "ollama_response_tail": None
-                        if ollama_result is None
-                        else ollama_result["response"][-4000:],
+                        if generation_result is None
+                        else generation_result["response"][-4000:],
                         "ollama_stderr_tail": None
-                        if ollama_result is None
-                        else ollama_result["stderr"][-4000:],
+                        if generation_result is None
+                        else generation_result["stderr"][-4000:],
                     }
                     out.write(json.dumps(record) + "\n")
                     print(
